@@ -6,21 +6,22 @@
   <title>Focus Dashboard</title>
   <meta name="description" content="A clean, minimal to-do and focus dashboard that stores everything in your browser." />
 
-  <!-- Prevent theme flash: apply saved theme before first paint -->
+  <!-- Apply saved theme before first paint (default: light) -->
   <script>
     (function () {
+      var theme = "light";
       try {
-        var raw = localStorage.getItem("focusdash.theme");
-        var t = raw ? JSON.parse(raw) : (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-        document.documentElement.setAttribute("data-theme", t);
+        var saved = JSON.parse(localStorage.getItem("focusdash.theme"));
+        if (saved === "dark" || saved === "light") theme = saved;
       } catch (e) { /* ignore */ }
+      document.documentElement.setAttribute("data-theme", theme);
     })();
   </script>
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/stylee.css" />
+  <link rel="stylesheet" href="css/stylee.css?v=2" />
 </head>
 <body>
   <!-- ============ Top bar ============ -->
@@ -80,7 +81,8 @@
     <!-- ---- Quick Links ---- -->
     <section class="card links-card" aria-label="Quick links">
       <h2 class="card-title">Quick Links</h2>
-      <form class="link-form" id="link-form">
+      <!-- novalidate: script.js adds https:// automatically if it's missing -->
+      <form class="link-form" id="link-form" novalidate>
         <input type="text" id="link-name" placeholder="Name" maxlength="40" autocomplete="off" />
         <input type="url" id="link-url" placeholder="https://example.com" />
         <button type="submit" class="btn btn-primary">Add</button>
@@ -91,6 +93,6 @@
 
   <footer class="footer">Focus Dashboard — your data stays in this browser only.</footer>
 
-  <script src="javascript/script.js"></script>
+  <script src="js/script.js?v=2"></script>
 </body>
 </html>

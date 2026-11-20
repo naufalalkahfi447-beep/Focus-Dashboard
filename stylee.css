@@ -7,8 +7,7 @@
 :root {
   --bg: #f4f5fb;
   --card-bg: #ffffff;
-  --text: #1a1c2e;
-  --text-muted: #6b7280;
+  --text: #1a1c2e;  --text-muted: #6b7280;
   --accent: #6366f1;
   --accent-hover: #4f46e5;
   --accent-soft: rgba(99, 102, 241, 0.12);

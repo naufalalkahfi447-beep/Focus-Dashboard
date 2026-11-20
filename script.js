@@ -6,7 +6,6 @@
   "use strict";
 
   /* ---------- Storage helpers ---------- */
-  // Small wrapper so every read/write is safe against quota / parse errors.
   const store = {
     get(key, fallback) {
       try {
@@ -33,8 +32,23 @@
     links: "focusdash.links"
   };
 
-  /* ---------- DOM shortcut ---------- */
   const $ = (id) => document.getElementById(id);
+
+  /* =========================================================
+     Theme (light / dark)
+     ========================================================= */
+  let currentTheme = "light";
+
+  function applyTheme(theme) {
+    currentTheme = theme === "dark" ? "dark" : "light";
+    document.documentElement.setAttribute("data-theme", currentTheme);
+    $("theme-toggle").textContent = currentTheme === "dark" ? "☀️ Light" : "🌙 Dark";
+    store.set(KEYS.theme, currentTheme);
+  }
+
+  function toggleTheme() {
+    applyTheme(currentTheme === "dark" ? "light" : "dark");
+  }
 
   /* =========================================================
      Clock + greeting
@@ -51,7 +65,8 @@
   function updateGreeting(now) {
     const h = now.getHours();
     let part;
-    if (h < 12) part = "Good morning,";
+    if (h < 5) part = "Good night,";
+    else if (h < 12) part = "Good morning,";
     else if (h < 18) part = "Good afternoon,";
     else if (h < 22) part = "Good evening,";
     else part = "Good night,";
@@ -64,20 +79,12 @@
   }
 
   /* =========================================================
-     Theme (light / dark)
-     ========================================================= */
-  function applyTheme(theme) {
-    document.documentElement.setAttribute("data-theme", theme);
-    $("theme-toggle").textContent = theme === "dark" ? "☀️ Light" : "🌙 Dark";
-    store.set(KEYS.theme, theme);
-  }
-
-  /* =========================================================
      Focus timer (Pomodoro-style, custom duration)
      ========================================================= */
   const timer = {
     remaining: 25 * 60, // seconds left
     total: 25 * 60,     // configured length in seconds
+    endAt: 0,           // timestamp (ms) when the timer should finish
     intervalId: null,
     running: false
   };
@@ -108,14 +115,16 @@
     if (timer.running) return;
     if (timer.remaining <= 0) timer.remaining = timer.total; // restart if finished
     timer.running = true;
+    // Count down from a fixed end time so it stays accurate
+    // even when the browser slows down a background tab.
+    timer.endAt = Date.now() + timer.remaining * 1000;
     renderTimer();
-    timer.intervalId = setInterval(tick, 1000);
+    timer.intervalId = setInterval(tick, 250);
   }
 
   function tick() {
-    timer.remaining--;
-    if (timer.remaining <= 0) {
-      timer.remaining = 0;
+    timer.remaining = Math.max(0, Math.round((timer.endAt - Date.now()) / 1000));
+    if (timer.remaining === 0) {
       stopTimer();
       onTimerComplete();
     }
@@ -223,18 +232,18 @@
     input.focus();
     input.select();
 
-    let committed = false;
+    let finished = false;
     const commit = () => {
-      if (committed) return;
-      committed = true;
+      if (finished) return;
+      finished = true;
       const v = input.value.trim();
       if (v) todo.text = v;
       saveTodos();
       renderTodos();
     };
     const cancel = () => {
-      if (committed) return;
-      committed = true;
+      if (finished) return;
+      finished = true;
       renderTodos();
     };
 
@@ -301,18 +310,29 @@
   /* =========================================================
      Quick links
      ========================================================= */
-  let links = store.get(KEYS.links, []);
+  // Starter links shown on first visit (before anything is saved).
+  let links = store.get(KEYS.links, [
+    { id: 1, name: "Google", url: "https://www.google.com" },
+    { id: 2, name: "YouTube", url: "https://www.youtube.com" },
+    { id: 3, name: "GitHub", url: "https://github.com" }
+  ]);
 
   function saveLinks() { store.set(KEYS.links, links); }
 
   function addLink(name, url) {
     name = (name || "").trim();
     url = (url || "").trim();
-    if (!name || !url) return;
+    if (!name || !url) return false;
     if (!/^https?:\/\//i.test(url)) url = "https://" + url; // be forgiving
+    try {
+      new URL(url); // reject clearly invalid input
+    } catch (e) {
+      return false;
+    }
     links.push({ id: Date.now(), name: name, url: url });
     saveLinks();
     renderLinks();
+    return true;
   }
 
   function deleteLink(id) {
@@ -361,15 +381,10 @@
      Wire everything up
      ========================================================= */
   function init() {
-    // ---- Theme ----
-    const savedTheme = store.get(KEYS.theme, null);
-    const theme = savedTheme ||
-      (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-    applyTheme(theme);
-    $("theme-toggle").addEventListener("click", () => {
-      const cur = document.documentElement.getAttribute("data-theme");
-      applyTheme(cur === "dark" ? "light" : "dark");
-    });
+    // ---- Theme (first, so it works even if something below fails) ----
+    const savedTheme = store.get(KEYS.theme, "light");
+    applyTheme(savedTheme);
+    $("theme-toggle").addEventListener("click", toggleTheme);
 
     // ---- Name ----
     renderName();
@@ -415,10 +430,13 @@
     renderLinks();
     $("link-form").addEventListener("submit", (e) => {
       e.preventDefault();
-      addLink($("link-name").value, $("link-url").value);
-      $("link-name").value = "";
-      $("link-url").value = "";
-      $("link-name").focus();
+      if (addLink($("link-name").value, $("link-url").value)) {
+        $("link-name").value = "";
+        $("link-url").value = "";
+        $("link-name").focus();
+      } else {
+        $("link-url").focus();
+      }
     });
   }
 
